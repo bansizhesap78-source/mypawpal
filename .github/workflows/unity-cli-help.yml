@@ -1,6 +1,6 @@
 name: Unity CLI keşif
 
-# Unity'nin bağımsız komut satırı aracının (unity) komutlarını ve seçeneklerini günlüğe yazar.
+# Unity CLI'nin önerdiği CI iş akışını (lisans etkinleştirme dahil) üretip günlüğe yazar; depoya bir şey yazmaz.
 on:
   workflow_dispatch:
 
@@ -14,21 +14,21 @@ jobs:
     env:
       UNITY_NO_BANNER: "1"
       UNITY_NO_PAGER: "1"
+      UNITY_NON_INTERACTIVE: "1"
     steps:
-      - name: Unity CLI'yi kur ve yardımını yaz
+      - uses: actions/checkout@v4
+      - name: unity ci init çıktısı
         run: |
           curl -fsSL https://unity.com/install.sh | bash
           export PATH="$HOME/.unity/bin:$PATH"
-          h() { echo "===== unity $* --help ====="; unity "$@" --help 2>&1 | sed '/^Global Options:/,$d' || true; }
-          h auth
-          for s in login signin sign-in token status; do h auth $s; done
-          h license
-          h license list
-          h license return
-          h build
-          h run
-          h ci
-          echo "===== unity commands --grep auth/license/password/token ====="
-          for g in auth license password token email ci; do unity commands --grep $g 2>&1 || true; done
-          echo "===== unity skill show (CI, auth, license) ====="
-          unity skill show 2>&1 | grep -n -i -E -B2 -A6 "auth|license|password|token|ci/cd|non-interactive" | head -200 || true
+          unity ci --help 2>&1 | sed '/^Global Options:/,$d' || true
+          unity ci init --help 2>&1 | sed '/^Global Options:/,$d' || true
+          unity license status --help 2>&1 | sed '/^Global Options:/,$d' || true
+          before=$(git status --porcelain)
+          unity ci init --provider github --target iOS 2>&1 || unity ci init 2>&1 || true
+          echo "===== üretilen/değişen dosyalar ====="
+          git status --porcelain
+          for f in $(git status --porcelain | awk '{print $2}'); do
+            if [ -d "$f" ]; then find "$f" -type f | while read -r g; do echo "----- $g -----"; cat "$g"; done
+            else echo "----- $f -----"; cat "$f"; fi
+          done
