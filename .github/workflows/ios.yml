@@ -1,8 +1,9 @@
 name: iOS (App Store Connect)
 
 # Elle başlatılır: Actions > "iOS (App Store Connect)" > Run workflow.
-# İş 1 (ubuntu): Unity 6 ile iOS Xcode projesini üretir (game-ci, Docker imajı unityci/editor:ubuntu-6000.6.3f1-ios-3).
-# İş 2 (macOS): Xcode projesini arşivler, App Store Connect API anahtarıyla otomatik imzalar, IPA'yı dışa aktarır ve yükler.
+# Tek macOS işi: Unity 6'yı kurar, Personal lisansı Unity e-posta/parolasıyla etkinleştirir, iOS Xcode projesini
+# üretir, App Store Connect API anahtarıyla otomatik imzalar, IPA'yı dışa aktarır ve App Store Connect'e yükler.
+# (Unity 6 Personal lisansı artık .ulf dosyası üretmediği için game-ci/Docker yolu kullanılamadı.)
 # Gerekli sırlar ve kurulum: IOS_BUILD.md
 
 on:
@@ -34,109 +35,71 @@ env:
   BUNDLE_VERSION: ${{ inputs.version }}
 
 jobs:
-  unity:
-    name: Unity iOS projesi (Xcode)
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+  ios:
+    name: Unity iOS → imzala → yükle (macOS)
+    runs-on: macos-26
+    timeout-minutes: 180
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
     steps:
       - name: Girdileri ve sırları denetle
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
           set -euo pipefail
-          # Unity 6 Personal: e-posta + parola yeterli olabilir; UNITY_LICENSE (.ulf) varsa o da kullanılır
-          for name in UNITY_EMAIL UNITY_PASSWORD; do
+          for name in UNITY_EMAIL UNITY_PASSWORD APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
             if [ -z "${!name}" ]; then echo "::error::Sır eksik: $name (IOS_BUILD.md)"; exit 1; fi
           done
-          if [ -z "$UNITY_LICENSE" ]; then echo "::warning::UNITY_LICENSE yok; e-posta/parola ile etkinleştirme denenecek"; fi
           if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
             echo "::error::Geçersiz build numarası: $BUILD_NUMBER"; exit 1
           fi
           if [ -n "$BUNDLE_VERSION" ] && ! [[ "$BUNDLE_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
             echo "::error::Geçersiz sürüm: $BUNDLE_VERSION"; exit 1
           fi
-          params="-iosBuildNumber $BUILD_NUMBER"
-          if [ -n "$BUNDLE_VERSION" ]; then params="$params -iosVersion $BUNDLE_VERSION"; fi
-          echo "UNITY_PARAMS=$params" >> "$GITHUB_ENV"
-
-      - uses: actions/checkout@v7
-
-      # Unity imajı büyük; runner'daki gereksiz araçları silip yer açar
-      - name: Disk alanı aç
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
-          df -h /
-
-      - name: Library önbelleği
-        uses: actions/cache@v6
-        with:
-          path: Library
-          key: Library-iOS-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-          restore-keys: |
-            Library-iOS-
-
-      - name: Unity ile iOS Xcode projesini üret
-        uses: game-ci/unity-builder@v5
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          targetPlatform: iOS
-          unityVersion: auto
-          buildsPath: build
-          buildMethod: PatiDostum.EditorTools.IOSBuilder.Build
-          versioning: None
-          customParameters: ${{ env.UNITY_PARAMS }}
-
-      - name: Xcode projesini paketle (dosya izinleri korunsun diye tar)
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" build
-          proj="$(find build -maxdepth 4 -name 'Unity-iPhone.xcodeproj' -print -quit)"
-          if [ -z "$proj" ]; then echo "::error::Unity-iPhone.xcodeproj üretilmedi"; find build -maxdepth 3 | head -50; exit 1; fi
-          dir="$(dirname "$proj")"
-          echo "Xcode projesi: $dir"
-          tar -czf ios-project.tar.gz -C "$dir" .
-          ls -lh ios-project.tar.gz
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ios-xcode-project
-          path: ios-project.tar.gz
-          retention-days: 3
-          compression-level: 0
-
-  archive:
-    name: Arşivle, imzala, yükle (macOS)
-    needs: unity
-    runs-on: macos-26
-    timeout-minutes: 90
-    env:
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-    steps:
-      - name: Sırları denetle
-        run: |
-          for name in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
-            if [ -z "${!name}" ]; then echo "::error::Sır eksik: $name (IOS_BUILD.md)"; exit 1; fi
-          done
           xcodebuild -version
 
-      - uses: actions/download-artifact@v8
-        with:
-          name: ios-xcode-project
+      - uses: actions/checkout@v4
 
-      - name: Xcode projesini aç
+      - name: Library önbelleği
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-iOS-mac-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-iOS-mac-
+
+      # ProjectSettings/ProjectVersion.txt'deki sürümü (6000.6.3f1) ve iOS modülünü kurar; UNITY_EDITOR_PATH verir
+      - name: Unity'yi kur
+        uses: buildalon/unity-setup@v1
+        with:
+          build-targets: iOS
+
+      - name: Unity Personal lisansını etkinleştir
+        uses: buildalon/activate-unity-license@v1
+        with:
+          license: Personal
+          username: ${{ secrets.UNITY_EMAIL }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+
+      - name: Unity ile iOS Xcode projesini üret
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/xcode"
-          tar -xzf ios-project.tar.gz -C "$RUNNER_TEMP/xcode"
-          xcodebuild -list -project "$RUNNER_TEMP/xcode/Unity-iPhone.xcodeproj"
+          args=(-quit -batchmode -nographics -projectPath "$GITHUB_WORKSPACE" -buildTarget iOS
+                -executeMethod PatiDostum.EditorTools.IOSBuilder.Build
+                -customBuildPath "$RUNNER_TEMP/xcode" -iosBuildNumber "$BUILD_NUMBER"
+                -logFile "$RUNNER_TEMP/unity.log")
+          if [ -n "$BUNDLE_VERSION" ]; then args+=(-iosVersion "$BUNDLE_VERSION"); fi
+          set +e
+          "$UNITY_EDITOR_PATH" "${args[@]}"
+          code=$?
+          set -e
+          grep -E "error CS|\[Pati Dostum\]|Build Finished|BuildFailedException|Exception" "$RUNNER_TEMP/unity.log" | tail -n 80 || true
+          if [ $code -ne 0 ] || [ ! -d "$RUNNER_TEMP/xcode/Unity-iPhone.xcodeproj" ]; then
+            echo "::error::Unity derlemesi başarısız (çıkış $code)"; tail -n 200 "$RUNNER_TEMP/unity.log"; exit 1
+          fi
 
       # ASC_KEY_P8 düz metin (-----BEGIN PRIVATE KEY----- ile başlayan) ya da base64 olabilir
       - name: App Store Connect API anahtarını yaz
@@ -205,7 +168,7 @@ jobs:
           ls -lh "$ipa"
 
       - name: IPA'yı artifact olarak sakla
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: MyPawPal-ipa-${{ env.BUILD_NUMBER }}
           path: ${{ env.IPA_PATH }}
@@ -220,13 +183,16 @@ jobs:
           xcrun altool --upload-app --type ios --file "$IPA_PATH" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
-      - name: Arşiv günlüğünü sakla (hata ayıklama)
+      - name: Günlükleri sakla (hata ayıklama)
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: ios-archive-log
-          path: ${{ runner.temp }}/archive.log
+          name: ios-logs
+          path: |
+            ${{ runner.temp }}/unity.log
+            ${{ runner.temp }}/archive.log
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: Anahtarı sil
         if: ${{ always() }}
