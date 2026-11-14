@@ -46,9 +46,11 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
           set -euo pipefail
-          for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
+          # Unity 6 Personal: e-posta + parola yeterli olabilir; UNITY_LICENSE (.ulf) varsa o da kullanılır
+          for name in UNITY_EMAIL UNITY_PASSWORD; do
             if [ -z "${!name}" ]; then echo "::error::Sır eksik: $name (IOS_BUILD.md)"; exit 1; fi
           done
+          if [ -z "$UNITY_LICENSE" ]; then echo "::warning::UNITY_LICENSE yok; e-posta/parola ile etkinleştirme denenecek"; fi
           if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
             echo "::error::Geçersiz build numarası: $BUILD_NUMBER"; exit 1
           fi
