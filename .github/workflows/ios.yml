@@ -73,6 +73,38 @@ jobs:
           echo "$HOME/.unity/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - uses: actions/checkout@v4
+
+      - name: Library önbelleği
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-iOS-mac-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-iOS-mac-
+
+      - name: Unity editör önbelleğini geri yükle
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.config/unityhub/downloads
+          key: unity-editor-${{ env.UNITY_VERSION }}-ios-mac
+
+      - name: Unity editörünü ve iOS modülünü kur
+        env:
+          UNITY_NON_INTERACTIVE: "1"
+        run: |
+          set -euo pipefail
+          unity install "$UNITY_VERSION" --changeset "$UNITY_CHANGESET" --module ios --yes --accept-eula
+          unity editors 2>&1 | tail -n 5 || true
+
+      - name: Unity editör önbelleğini kaydet
+        if: ${{ always() }}
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ~/.config/unityhub/downloads
+          key: unity-editor-${{ env.UNITY_VERSION }}-ios-mac
+
       # Giriş arka planda bekler; bağlantı artifact olarak yayınlanır, sonraki adımlar sürerken onaylanabilir
       - name: Unity girişini başlat
         run: |
@@ -95,30 +127,6 @@ jobs:
           name: unity-login-url
           path: ${{ runner.temp }}/unity-login/url.txt
           retention-days: 1
-
-      - uses: actions/checkout@v4
-
-      - name: Library önbelleği
-        uses: actions/cache@v4
-        with:
-          path: Library
-          key: Library-iOS-mac-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-          restore-keys: |
-            Library-iOS-mac-
-
-      - name: Unity editör indirme önbelleği
-        uses: actions/cache@v4
-        with:
-          path: ~/.config/unityhub/downloads
-          key: unity-downloads-${{ env.UNITY_VERSION }}-ios
-
-      - name: Unity editörünü ve iOS modülünü kur
-        env:
-          UNITY_NON_INTERACTIVE: "1"
-        run: |
-          set -euo pipefail
-          unity install "$UNITY_VERSION" --changeset "$UNITY_CHANGESET" --module ios --yes --accept-eula
-          unity editors 2>&1 | tail -n 5 || true
 
       - name: Girişin onaylanmasını bekle (en çok 30 dk)
         run: |
