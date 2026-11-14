@@ -179,10 +179,22 @@ MonoBehaviour:
     sprite: {fileID: 21300000, guid: e2992176e5033aa42bcda811944ef1c2, type: 3}
   - key: icon_cloth_witch_hat
     sprite: {fileID: 21300000, guid: c6ec4ea622cad8c4ab6589211c2ada54, type: 3}
+  - key: icon_food_acacia
+    sprite: {fileID: 21300000, guid: 3fae1fa0ae0e9b24a9746ce10e459d31, type: 3}
+  - key: icon_food_bamboo
+    sprite: {fileID: 21300000, guid: ef959640adaffba458f6ea8c6b8579e5, type: 3}
   - key: icon_food_bone
     sprite: {fileID: 21300000, guid: 7f2c4c5eccb65054eb81be3977ab3d47, type: 3}
   - key: icon_food_carrot
     sprite: {fileID: 21300000, guid: 631e5dd93e81cd3489dadf76c7896189, type: 3}
+  - key: icon_food_corn
+    sprite: {fileID: 21300000, guid: 5da411b1e69a4bf4cb1f75b7d01ec1f3, type: 3}
+  - key: icon_food_cricket
+    sprite: {fileID: 21300000, guid: 7b03e3a54706b7f43bb8122df2eff934, type: 3}
+  - key: icon_food_cucumber
+    sprite: {fileID: 21300000, guid: cc0d6b8160996864fb6055e5102827b3, type: 3}
+  - key: icon_food_fern
+    sprite: {fileID: 21300000, guid: ee37932634e84ad459b803ea8113f49c, type: 3}
   - key: icon_food_fish
     sprite: {fileID: 21300000, guid: 37ce3dba1fbc3da4ca89b90bef6ef439, type: 3}
   - key: icon_food_flakes
@@ -193,10 +205,24 @@ MonoBehaviour:
     sprite: {fileID: 21300000, guid: 6a6cc53eff1932b449946530c74672f4, type: 3}
   - key: icon_food_hay
     sprite: {fileID: 21300000, guid: f1d9667bfaf772a4e81d1b3ff801782b, type: 3}
+  - key: icon_food_honey
+    sprite: {fileID: 21300000, guid: b7ff1e4d9b8576941a9eadc6ac27efd6, type: 3}
+  - key: icon_food_krill
+    sprite: {fileID: 21300000, guid: d19bce4012078914b9ffb3171509620c, type: 3}
+  - key: icon_food_meat
+    sprite: {fileID: 21300000, guid: 1615852dd548b184195cf4b2b0de561b, type: 3}
+  - key: icon_food_millet
+    sprite: {fileID: 21300000, guid: 63021fec26c8bfc48a2221902b031f27, type: 3}
   - key: icon_food_pet_food
     sprite: {fileID: 21300000, guid: f538d2be74fd5ef46ab38520b46ecb53, type: 3}
   - key: icon_food_seeds
     sprite: {fileID: 21300000, guid: 2e046e8f5a8d3de478a5a61615b62a53, type: 3}
+  - key: icon_food_steak
+    sprite: {fileID: 21300000, guid: e9e56acf178c4544cadbfc283b39b63a, type: 3}
+  - key: icon_food_strawberry
+    sprite: {fileID: 21300000, guid: 056af27450809044b9f96744c6f4df4c, type: 3}
+  - key: icon_food_sunflower
+    sprite: {fileID: 21300000, guid: 1698fd2978bdec64ebcfb4e9e483ba06, type: 3}
   - key: icon_food_treat
     sprite: {fileID: 21300000, guid: 82563aea49fe3284f95bcebbbc0cb231, type: 3}
   - key: icon_food_water
@@ -239,6 +265,8 @@ MonoBehaviour:
     sprite: {fileID: 21300000, guid: 8f24cf492c2eae744a42e1918a3acc9d, type: 3}
   - key: icon_mg_card
     sprite: {fileID: 21300000, guid: 2a1337062a8daaf46aa56e9e1d4f3cf4, type: 3}
+  - key: icon_mg_shell
+    sprite: {fileID: 21300000, guid: 6e0696e408ab8b04a91aecabe6a364db, type: 3}
   - key: icon_mg_star
     sprite: {fileID: 21300000, guid: 8d42d6fa570367946b2b4ba38c2c4c10, type: 3}
   - key: icon_mg_trash
