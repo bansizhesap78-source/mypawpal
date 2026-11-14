@@ -2056,6 +2056,15 @@ namespace PatiDostum.EditorTools
 
             // Gizlilik / koşullar: mesajın üstünde (merkez eksenine göre y; ekranın altından yaklaşık 360-440)
             LegalLinks shopLegal = LegalButtons(canvas, canvas.gameObject, -560f, new Vector2(440f, 80f), 240f);
+            // Ekran oranı değişince (uzun telefon) listeyle çakışmasın: altta sabitlenir (mesajın üstü, liste alanının altı)
+            foreach (string legalName in new[] { "LegalPrivacy", "LegalTerms" })
+            {
+                var legalRect = (RectTransform)canvas.Find(legalName);
+                float legalX = legalRect.anchoredPosition.x;
+                legalRect.anchorMin = legalRect.anchorMax = new Vector2(0.5f, 0f);
+                legalRect.pivot = new Vector2(0.5f, 0.5f);
+                legalRect.anchoredPosition = new Vector2(legalX, 385f);
+            }
 
             ParentalGate gate = BuildGate(canvas);
 
