@@ -46,9 +46,10 @@ jobs:
       - name: Xcode projesini indir ve aç
         run: |
           set -euo pipefail
-          gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" -p 'ios-xcode.tar.gz' -D "$RUNNER_TEMP"
+          gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" -p 'ios-xcode*.tar.gz' -D "$RUNNER_TEMP/dl"
+          tarball="$(ls "$RUNNER_TEMP"/dl/ios-xcode*.tar.gz | head -n1)"
           mkdir -p "$RUNNER_TEMP/xcode"
-          tar -xzf "$RUNNER_TEMP/ios-xcode.tar.gz" -C "$RUNNER_TEMP/xcode"
+          tar -xzf "$tarball" -C "$RUNNER_TEMP/xcode"
           cd "$RUNNER_TEMP/xcode"
           test -d Unity-iPhone.xcodeproj || { echo "::error::Unity-iPhone.xcodeproj yok"; ls -la; exit 1; }
           # Windows'ta paketlenen projede çalıştırma izinleri kaybolur; Unity'nin betik ve araçlarına geri ver
