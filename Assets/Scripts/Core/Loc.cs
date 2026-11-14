@@ -222,6 +222,8 @@ namespace PatiDostum
             { "gate_title", new[] { "Ebeveyn sorusu", "Grown-ups only" } },
             { "gate_question", new[] { "{0} × {1} = ?", "{0} × {1} = ?" } },
             { "gate_wrong", new[] { "Yanlış, tekrar dene", "Wrong, try again" } },
+            { "legal_privacy", new[] { "Gizlilik Politikası", "Privacy Policy" } },
+            { "legal_terms", new[] { "Kullanım Koşulları", "Terms of Use" } },
 
             // Bildirimler
             { "notify_channel", new[] { "Dostun", "Your pal" } },

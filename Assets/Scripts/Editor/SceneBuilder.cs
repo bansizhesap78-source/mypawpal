@@ -1541,6 +1541,7 @@ namespace PatiDostum.EditorTools
                 value.fontSize = 34;
                 value.transform.parent.GetComponent<Image>().color = new Color32(0xE0, 0x6F, 0x9C, 255);
             }
+            LegalLinks legal = LegalButtons(card, root.gameObject, -560f, new Vector2(380f, 90f), 200f);
             BigButton("Close", card, "close", Coral, new Vector2(0f, -700f), new Vector2(500f, 130f), settings.Close)
                 .transform.Find("Label").GetComponent<Text>().fontSize = 58;
 
@@ -1563,6 +1564,7 @@ namespace PatiDostum.EditorTools
             SetRef(settings, "boardingValue", boarding);
             SetRef(settings, "shelterValue", shelter);
             SetRef(settings, "gate", gate);
+            SetRef(legal, "gate", gate);
             return settings;
         }
 
@@ -1830,6 +1832,7 @@ namespace PatiDostum.EditorTools
             Image manage = BigButton("Manage", p, "club_manage", new Color(Plum.r, Plum.g, Plum.b, 0.75f), new Vector2(0f, -270f), new Vector2(700f, 100f), hub.ManageSubscription);
             manage.transform.Find("Label").GetComponent<Text>().fontSize = 36;
             Hint(p, "club_terms", -440f).rectTransform.sizeDelta = new Vector2(980f, 180f);
+            LegalLinks clubLegal = LegalButtons(p, p.gameObject, -620f, new Vector2(440f, 90f), 240f);
 
             Text message = Outlined(Txt("Message", canvas, "", 46, TextAnchor.MiddleCenter, BottomCenter, new Vector2(0f, 70f), new Vector2(1020f, 90f)));
             message.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -1841,6 +1844,7 @@ namespace PatiDostum.EditorTools
             SetRef(hub, "diamondText", diamonds);
             SetRef(hub, "messageText", message);
             SetRef(hub, "gate", gate);
+            SetRef(clubLegal, "gate", gate);
             SetRef(hub, "streakText", streak);
             SetArray(hub, "taskNames", taskNames);
             SetArray(hub, "taskIcons", taskIcons);
@@ -1874,6 +1878,32 @@ namespace PatiDostum.EditorTools
             SetRef(hub, "yearlyLabel", yearlyLabel);
 
             EditorSceneManager.SaveScene(scene, ScenePath(HubController.HubScene));
+        }
+
+        /// <summary>
+        /// "Gizlilik Politikası" ve "Kullanım Koşulları" butonları (ebeveyn kapısı ardında dış bağlantı). LegalLinks
+        /// bileşeni <paramref name="host"/> üzerine eklenir; kapı sonradan SetRef ile bağlanır. iOS dışında koşullar gizlenir.
+        /// </summary>
+        private static LegalLinks LegalButtons(Transform parent, GameObject host, float y, Vector2 size, float dx)
+        {
+            var legal = host.AddComponent<LegalLinks>();
+            Color tint = new Color(Plum.r, Plum.g, Plum.b, 0.75f);
+            Image privacy = BigButton("LegalPrivacy", parent, "legal_privacy", tint, new Vector2(-dx, y), size, legal.OpenPrivacy);
+            Image terms = BigButton("LegalTerms", parent, "legal_terms", tint, new Vector2(dx, y), size, legal.OpenTerms);
+            foreach (Image button in new[] { privacy, terms })
+            {
+                Text label = button.transform.Find("Label").GetComponent<Text>();
+                label.fontSize = 36;
+                label.rectTransform.sizeDelta = size - new Vector2(20f, 10f);
+                label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                label.verticalOverflow = VerticalWrapMode.Truncate;
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 22;
+                label.resizeTextMaxSize = 36;
+            }
+            SetRef(legal, "privacyButton", privacy.rectTransform);
+            SetRef(legal, "termsButton", terms.rectTransform);
+            return legal;
         }
 
         /// <summary>Açıklama yazısı (küçük, sarmalı).</summary>
@@ -1944,7 +1974,7 @@ namespace PatiDostum.EditorTools
             RectTransform view = NewUI("Viewport", canvas);
             view.anchorMin = Vector2.zero;
             view.anchorMax = Vector2.one;
-            view.offsetMin = new Vector2(0f, 360f);
+            view.offsetMin = new Vector2(0f, 450f);   // altta mesaj + gizlilik/koşullar bağlantı satırı için yer
             view.offsetMax = new Vector2(0f, -320f);
             view.gameObject.AddComponent<RectMask2D>();
             Image viewHit = view.gameObject.AddComponent<Image>();
@@ -2024,6 +2054,9 @@ namespace PatiDostum.EditorTools
             noteLine.effectDistance = new Vector2(2f, -2f);
             Localize(note, "shop_note");
 
+            // Gizlilik / koşullar: mesajın üstünde (merkez eksenine göre y; ekranın altından yaklaşık 360-440)
+            LegalLinks shopLegal = LegalButtons(canvas, canvas.gameObject, -560f, new Vector2(440f, 80f), 240f);
+
             ParentalGate gate = BuildGate(canvas);
 
             SetRef(shop, "goldText", gold);
@@ -2037,6 +2070,7 @@ namespace PatiDostum.EditorTools
             SetRef(shop, "messageText", message);
             SetRef(shop, "testBadge", test.gameObject);
             SetRef(shop, "gate", gate);
+            SetRef(shopLegal, "gate", gate);
 
             EditorSceneManager.SaveScene(scene, ScenePath(ShopController.ShopScene));
         }
