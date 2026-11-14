@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/Boot.unity
+    guid: a074868f641283d4f9b6341832f53d1a
+  - enabled: 1
+    path: Assets/Scenes/Home.unity
+    guid: b6cdcf33c35f30142b9b5733b77ec459
+  - enabled: 1
+    path: Assets/Scenes/Adopt.unity
+    guid: a5f3e06236b9adf4699c9f578416e8f8
+  - enabled: 1
+    path: Assets/Scenes/Pet.unity
+    guid: 3d1afcae7b0b6e543ba371592b699242
+  - enabled: 1
+    path: Assets/Scenes/Memorial.unity
+    guid: 4fbe09a0ba4574b46a90e85fdae9edef
+  - enabled: 1
+    path: Assets/Scenes/MiniGame.unity
+    guid: ee4073cf8b506614fac10855fabb4d8a
+  - enabled: 1
+    path: Assets/Scenes/Shop.unity
+    guid: 3a276a65a08701b4d81b25b42eefc805
+  - enabled: 1
+    path: Assets/Scenes/Hub.unity
+    guid: d7658a0f182c56f409b653cff9bc5e1a
+  m_configObjects:
+    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}

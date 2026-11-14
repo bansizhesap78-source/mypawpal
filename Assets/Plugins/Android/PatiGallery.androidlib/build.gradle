@@ -1,0 +1,20 @@
+// Foto stüdyosu: çekilen fotoğrafı telefonun galerisine (Resimler/Pati Dostum) kaydeder.
+// Android 10+ MediaStore ile izin istemeden yazar; daha eski telefonlarda kaydetmez.
+apply plugin: 'com.android.library'
+
+android {
+    namespace "com.alpigame.mypawpal.gallery"
+    compileSdk getProperty("unity.compileSdkVersion") as int
+    buildToolsVersion = getProperty("unity.buildToolsVersion")
+
+    compileOptions {
+        sourceCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatibilityVersion"))
+        targetCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatibilityVersion"))
+    }
+
+    defaultConfig {
+        minSdk getProperty("unity.minSdkVersion") as int
+        targetSdk getProperty("unity.targetSdkVersion") as int
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+}

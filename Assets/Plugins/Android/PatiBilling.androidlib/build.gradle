@@ -1,0 +1,24 @@
+// Google Play Billing köprüsü (Unity IAP yerine): Unity Services ve veri toplama olmadan yalnızca Play satın alma.
+// Unity tarafı: Assets/Scripts/Store/GooglePlayStore.cs (AndroidJavaProxy ile PatiBilling.Listener).
+apply plugin: 'com.android.library'
+
+dependencies {
+    implementation 'com.android.billingclient:billing:8.3.0'
+}
+
+android {
+    namespace "com.alpigame.mypawpal.billing"
+    compileSdk getProperty("unity.compileSdkVersion") as int
+    buildToolsVersion = getProperty("unity.buildToolsVersion")
+
+    compileOptions {
+        sourceCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatibilityVersion"))
+        targetCompatibility JavaVersion.valueOf(getProperty("unity.javaCompatibilityVersion"))
+    }
+
+    defaultConfig {
+        minSdk getProperty("unity.minSdkVersion") as int
+        targetSdk getProperty("unity.targetSdkVersion") as int
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+}

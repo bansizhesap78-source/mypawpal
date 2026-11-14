@@ -1,0 +1,14 @@
+// Uygulamanın Türkçe adı: Unity app_name'i ürün adından ("My Paw Pal") yazar; bu kütüphane yalnızca
+// values-tr/app_name ekler, Türkçe telefonda simgenin altında "Pati Dostum" görünür.
+apply plugin: 'com.android.library'
+
+android {
+    namespace "com.alpigame.mypawpal.appname"
+    compileSdk getProperty("unity.compileSdkVersion") as int
+    buildToolsVersion = getProperty("unity.buildToolsVersion")
+
+    defaultConfig {
+        minSdk getProperty("unity.minSdkVersion") as int
+        targetSdk getProperty("unity.targetSdkVersion") as int
+    }
+}

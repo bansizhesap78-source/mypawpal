@@ -1,0 +1,231 @@
+name: iOS (App Store Connect)
+
+# Elle başlatılır: Actions > "iOS (App Store Connect)" > Run workflow.
+# İş 1 (ubuntu): Unity 6 ile iOS Xcode projesini üretir (game-ci, Docker imajı unityci/editor:ubuntu-6000.6.3f1-ios-3).
+# İş 2 (macOS): Xcode projesini arşivler, App Store Connect API anahtarıyla otomatik imzalar, IPA'yı dışa aktarır ve yükler.
+# Gerekli sırlar ve kurulum: IOS_BUILD.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Build numarası (CFBundleVersion). Boşsa çalıştırma numarası kullanılır."
+        required: false
+        default: ""
+      version:
+        description: "Sürüm (CFBundleShortVersionString, ör. 1.0.0). Boşsa projedeki sürüm kullanılır."
+        required: false
+        default: ""
+      upload:
+        description: "IPA App Store Connect'e (TestFlight) yüklensin mi?"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
+
+env:
+  BUILD_NUMBER: ${{ inputs.build_number != '' && inputs.build_number || github.run_number }}
+  BUNDLE_VERSION: ${{ inputs.version }}
+
+jobs:
+  unity:
+    name: Unity iOS projesi (Xcode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Girdileri ve sırları denetle
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::Sır eksik: $name (IOS_BUILD.md)"; exit 1; fi
+          done
+          if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "::error::Geçersiz build numarası: $BUILD_NUMBER"; exit 1
+          fi
+          if [ -n "$BUNDLE_VERSION" ] && ! [[ "$BUNDLE_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "::error::Geçersiz sürüm: $BUNDLE_VERSION"; exit 1
+          fi
+          params="-iosBuildNumber $BUILD_NUMBER"
+          if [ -n "$BUNDLE_VERSION" ]; then params="$params -iosVersion $BUNDLE_VERSION"; fi
+          echo "UNITY_PARAMS=$params" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+
+      # Unity imajı büyük; runner'daki gereksiz araçları silip yer açar
+      - name: Disk alanı aç
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Library önbelleği
+        uses: actions/cache@v6
+        with:
+          path: Library
+          key: Library-iOS-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-iOS-
+
+      - name: Unity ile iOS Xcode projesini üret
+        uses: game-ci/unity-builder@v5
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: iOS
+          unityVersion: auto
+          buildsPath: build
+          buildMethod: PatiDostum.EditorTools.IOSBuilder.Build
+          versioning: None
+          customParameters: ${{ env.UNITY_PARAMS }}
+
+      - name: Xcode projesini paketle (dosya izinleri korunsun diye tar)
+        run: |
+          set -euo pipefail
+          sudo chown -R "$(id -u):$(id -g)" build
+          proj="$(find build -maxdepth 4 -name 'Unity-iPhone.xcodeproj' -print -quit)"
+          if [ -z "$proj" ]; then echo "::error::Unity-iPhone.xcodeproj üretilmedi"; find build -maxdepth 3 | head -50; exit 1; fi
+          dir="$(dirname "$proj")"
+          echo "Xcode projesi: $dir"
+          tar -czf ios-project.tar.gz -C "$dir" .
+          ls -lh ios-project.tar.gz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios-xcode-project
+          path: ios-project.tar.gz
+          retention-days: 3
+          compression-level: 0
+
+  archive:
+    name: Arşivle, imzala, yükle (macOS)
+    needs: unity
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Sırları denetle
+        run: |
+          for name in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            if [ -z "${!name}" ]; then echo "::error::Sır eksik: $name (IOS_BUILD.md)"; exit 1; fi
+          done
+          xcodebuild -version
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ios-xcode-project
+
+      - name: Xcode projesini aç
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/xcode"
+          tar -xzf ios-project.tar.gz -C "$RUNNER_TEMP/xcode"
+          xcodebuild -list -project "$RUNNER_TEMP/xcode/Unity-iPhone.xcodeproj"
+
+      # ASC_KEY_P8 düz metin (-----BEGIN PRIVATE KEY----- ile başlayan) ya da base64 olabilir
+      - name: App Store Connect API anahtarını yaz
+        run: |
+          set -euo pipefail
+          keydir="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$keydir"
+          key="$keydir/AuthKey_${ASC_KEY_ID}.p8"
+          if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY_P8" > "$key"
+          else
+            printf '%s' "$ASC_KEY_P8" | openssl base64 -d -A > "$key"
+          fi
+          chmod 600 "$key"
+          grep -q 'BEGIN PRIVATE KEY' "$key" || { echo "::error::ASC_KEY_P8 çözülemedi (düz metin ya da base64 olmalı)"; exit 1; }
+          echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
+
+      - name: Arşivle (otomatik imza)
+        working-directory: ${{ runner.temp }}/xcode
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project Unity-iPhone.xcodeproj \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/MyPawPal.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            | tee "$RUNNER_TEMP/archive.log" | tail -n 200
+
+      - name: IPA'yı dışa aktar (app-store-connect)
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>stripSwiftSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/MyPawPal.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          ipa="$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)"
+          if [ -z "$ipa" ]; then echo "::error::IPA üretilmedi"; ls -la "$RUNNER_TEMP/export"; exit 1; fi
+          cp "$ipa" "$RUNNER_TEMP/MyPawPal-${BUILD_NUMBER}.ipa"
+          echo "IPA_PATH=$RUNNER_TEMP/MyPawPal-${BUILD_NUMBER}.ipa" >> "$GITHUB_ENV"
+          ls -lh "$ipa"
+
+      - name: IPA'yı artifact olarak sakla
+        uses: actions/upload-artifact@v7
+        with:
+          name: MyPawPal-ipa-${{ env.BUILD_NUMBER }}
+          path: ${{ env.IPA_PATH }}
+          retention-days: 14
+          compression-level: 0
+
+      # altool anahtarı ~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8 yolundan okur
+      - name: App Store Connect'e yükle
+        if: ${{ inputs.upload }}
+        run: |
+          set -euo pipefail
+          xcrun altool --upload-app --type ios --file "$IPA_PATH" \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Arşiv günlüğünü sakla (hata ayıklama)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-archive-log
+          path: ${{ runner.temp }}/archive.log
+          retention-days: 7
+
+      - name: Anahtarı sil
+        if: ${{ always() }}
+        run: rm -f "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
