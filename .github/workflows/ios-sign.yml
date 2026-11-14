@@ -54,6 +54,9 @@ jobs:
           # Windows'ta paketlenen projede çalıştırma izinleri kaybolur; Unity'nin betik ve araçlarına geri ver
           find . -type f \( -name '*.sh' -o -name '*.py' -o -name 'MapFileParser' -o -name 'usymtool' -o -name 'il2cpp' \) -exec chmod +x {} + || true
           find . -type f -path '*/Il2CppOutputProject/IL2CPP/build/deploy*' -exec chmod +x {} + 2>/dev/null || true
+          # Windows'ta üretilen projede kalmış tam yolları (C:/...) proje köküne göreli yap
+          sed -i '' -E 's#path = "[A-Za-z]:/[^"]*/([^/"]+)"; sourceTree = SOURCE_ROOT;#path = \1; sourceTree = SOURCE_ROOT;#g' Unity-iPhone.xcodeproj/project.pbxproj
+          if grep -n 'path = "[A-Za-z]:/' Unity-iPhone.xcodeproj/project.pbxproj; then echo "::error::Projede Windows yolu kaldı"; exit 1; fi
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Info.plist || true
           plutil -p Info.plist | grep -E 'CFBundle(ShortVersionString|Version|DisplayName)' || true
           xcodebuild -list -project Unity-iPhone.xcodeproj

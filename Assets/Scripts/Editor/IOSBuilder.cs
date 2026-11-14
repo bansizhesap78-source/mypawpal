@@ -216,7 +216,8 @@ namespace PatiDostum.EditorTools
             project.SetBuildProperty(main, "SWIFT_VERSION", "5.0");
 
             // tr.lproj klasörü pakete olduğu gibi kopyalanır
-            string reference = project.AddFolderReference(Path.Combine(path, "tr.lproj"), "tr.lproj");
+            // Yol proje köküne göreli verilir; tam yol Windows'ta üretilen projeyi Mac'te bozar
+            string reference = project.AddFolderReference("tr.lproj", "tr.lproj", PBXSourceTree.Source);
             project.AddFileToBuild(main, reference);
 
             project.WriteToFile(projectPath);
