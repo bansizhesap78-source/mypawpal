@@ -1,9 +1,12 @@
 name: iOS (App Store Connect)
 
 # Elle başlatılır: Actions > "iOS (App Store Connect)" > Run workflow.
-# Tek macOS işi: Unity 6'yı kurar, Personal lisansı Unity e-posta/parolasıyla etkinleştirir, iOS Xcode projesini
-# üretir, App Store Connect API anahtarıyla otomatik imzalar, IPA'yı dışa aktarır ve App Store Connect'e yükler.
-# (Unity 6 Personal lisansı artık .ulf dosyası üretmediği için game-ci/Docker yolu kullanılamadı.)
+# Tek macOS işi:
+#   1) Unity CLI kurulur ve Unity girişi başlatılır. Giriş bağlantısı "unity-login-url" artifact'ına yazılır;
+#      bağlantı herhangi bir cihazdaki tarayıcıda açılıp onaylanır (Unity Personal lisansı gözetimsiz
+#      etkinleştirilemediği için her derlemede bir kez gerekir).
+#   2) Unity 6000.6.3f1 + iOS modülü kurulur, Personal lisans etkinleştirilir, Xcode projesi üretilir.
+#   3) App Store Connect API anahtarıyla otomatik imzalanır, IPA dışa aktarılır ve yüklenir. Lisans iade edilir.
 # Gerekli sırlar ve kurulum: IOS_BUILD.md
 
 on:
@@ -25,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ios-build
@@ -33,6 +37,10 @@ concurrency:
 env:
   BUILD_NUMBER: ${{ inputs.build_number != '' && inputs.build_number || github.run_number }}
   BUNDLE_VERSION: ${{ inputs.version }}
+  UNITY_VERSION: 6000.6.3f1
+  UNITY_CHANGESET: 45d8eee7de74
+  UNITY_NO_BANNER: "1"
+  UNITY_NO_PAGER: "1"
 
 jobs:
   ios:
@@ -44,13 +52,11 @@ jobs:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
     steps:
       - name: Girdileri ve sırları denetle
         run: |
           set -euo pipefail
-          for name in UNITY_EMAIL UNITY_PASSWORD APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+          for name in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
             if [ -z "${!name}" ]; then echo "::error::Sır eksik: $name (IOS_BUILD.md)"; exit 1; fi
           done
           if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
@@ -60,6 +66,35 @@ jobs:
             echo "::error::Geçersiz sürüm: $BUNDLE_VERSION"; exit 1
           fi
           xcodebuild -version
+
+      - name: Unity CLI'yi kur
+        run: |
+          curl -fsSL https://unity.com/install.sh | bash
+          echo "$HOME/.unity/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Giriş arka planda bekler; bağlantı artifact olarak yayınlanır, sonraki adımlar sürerken onaylanabilir
+      - name: Unity girişini başlat
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/unity-login"
+          nohup unity auth login --insecure-storage > "$RUNNER_TEMP/unity-login/login.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/unity-login/pid"
+          for i in $(seq 1 60); do
+            url="$(grep -o 'https://services\.api\.unity\.com/app-linking[^[:space:]]*' "$RUNNER_TEMP/unity-login/login.log" | head -n1 || true)"
+            if [ -n "$url" ]; then break; fi
+            sleep 1
+          done
+          if [ -z "${url:-}" ]; then echo "::error::Giriş bağlantısı alınamadı"; cat "$RUNNER_TEMP/unity-login/login.log"; exit 1; fi
+          printf '%s\n' "$url" > "$RUNNER_TEMP/unity-login/url.txt"
+          echo "Giriş bağlantısı artifact'a yazıldı (unity-login-url)."
+
+      - name: Giriş bağlantısını yayınla
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-login-url
+          path: ${{ runner.temp }}/unity-login/url.txt
+          retention-days: 1
 
       - uses: actions/checkout@v4
 
@@ -71,34 +106,57 @@ jobs:
           restore-keys: |
             Library-iOS-mac-
 
-      # ProjectSettings/ProjectVersion.txt'deki sürümü (6000.6.3f1) ve iOS modülünü kurar; UNITY_EDITOR_PATH verir
-      - name: Unity'yi kur
-        uses: buildalon/unity-setup@v1
+      - name: Unity editör indirme önbelleği
+        uses: actions/cache@v4
         with:
-          build-targets: iOS
+          path: ~/.config/unityhub/downloads
+          key: unity-downloads-${{ env.UNITY_VERSION }}-ios
 
-      - name: Unity Personal lisansını etkinleştir
-        uses: buildalon/activate-unity-license@v1
-        with:
-          license: Personal
-          username: ${{ secrets.UNITY_EMAIL }}
-          password: ${{ secrets.UNITY_PASSWORD }}
-
-      - name: Unity ile iOS Xcode projesini üret
+      - name: Unity editörünü ve iOS modülünü kur
+        env:
+          UNITY_NON_INTERACTIVE: "1"
         run: |
           set -euo pipefail
-          args=(-quit -batchmode -nographics -projectPath "$GITHUB_WORKSPACE" -buildTarget iOS
-                -executeMethod PatiDostum.EditorTools.IOSBuilder.Build
-                -customBuildPath "$RUNNER_TEMP/xcode" -iosBuildNumber "$BUILD_NUMBER"
-                -logFile "$RUNNER_TEMP/unity.log")
-          if [ -n "$BUNDLE_VERSION" ]; then args+=(-iosVersion "$BUNDLE_VERSION"); fi
+          unity install "$UNITY_VERSION" --changeset "$UNITY_CHANGESET" --module ios --yes --accept-eula
+          unity editors 2>&1 | tail -n 5 || true
+
+      - name: Girişin onaylanmasını bekle (en çok 30 dk)
+        run: |
+          pid="$(cat "$RUNNER_TEMP/unity-login/pid")"
+          for i in $(seq 1 180); do
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 10
+          done
+          cat "$RUNNER_TEMP/unity-login/login.log" | grep -v -E 'https://' || true
+          if kill -0 "$pid" 2>/dev/null; then echo "::error::Unity girişi 30 dakikada onaylanmadı"; kill "$pid" || true; exit 1; fi
+          unity auth status
+
+      - name: Unity Personal lisansını etkinleştir
+        env:
+          UNITY_NON_INTERACTIVE: "1"
+        run: |
+          set -euo pipefail
+          unity license activate --personal --accept-eula
+          unity license status || true
+
+      - name: Unity ile iOS Xcode projesini üret
+        env:
+          UNITY_NON_INTERACTIVE: "1"
+        run: |
+          set -euo pipefail
+          extra="-customBuildPath $RUNNER_TEMP/xcode -iosBuildNumber $BUILD_NUMBER"
+          if [ -n "$BUNDLE_VERSION" ]; then extra="$extra -iosVersion $BUNDLE_VERSION"; fi
           set +e
-          "$UNITY_EDITOR_PATH" "${args[@]}"
+          unity build "$GITHUB_WORKSPACE" --target iOS \
+            --execute-method PatiDostum.EditorTools.IOSBuilder.Build \
+            --output "$RUNNER_TEMP/xcode" \
+            --log-file "$RUNNER_TEMP/unity.log" --no-tail \
+            --args "$extra"
           code=$?
           set -e
           grep -E "error CS|\[Pati Dostum\]|Build Finished|BuildFailedException|Exception" "$RUNNER_TEMP/unity.log" | tail -n 80 || true
           if [ $code -ne 0 ] || [ ! -d "$RUNNER_TEMP/xcode/Unity-iPhone.xcodeproj" ]; then
-            echo "::error::Unity derlemesi başarısız (çıkış $code)"; tail -n 200 "$RUNNER_TEMP/unity.log"; exit 1
+            echo "::error::Unity derlemesi başarısız (çıkış $code)"; tail -n 200 "$RUNNER_TEMP/unity.log" || true; exit 1
           fi
 
       # ASC_KEY_P8 düz metin (-----BEGIN PRIVATE KEY----- ile başlayan) ya da base64 olabilir
@@ -193,6 +251,14 @@ jobs:
             ${{ runner.temp }}/archive.log
           retention-days: 7
           if-no-files-found: ignore
+
+      - name: Unity lisansını iade et ve çıkış yap
+        if: ${{ always() }}
+        env:
+          UNITY_NON_INTERACTIVE: "1"
+        run: |
+          unity license return --yes || true
+          unity auth logout || true
 
       - name: Anahtarı sil
         if: ${{ always() }}
