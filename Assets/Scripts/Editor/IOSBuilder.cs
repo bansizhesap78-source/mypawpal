@@ -51,6 +51,7 @@ namespace PatiDostum.EditorTools
                 return;
             }
 
+            string originalBundleVersion = PlayerSettings.bundleVersion;
             string version = Argument("-iosVersion") ?? Environment.GetEnvironmentVariable("IOS_BUNDLE_VERSION");
             if (!string.IsNullOrEmpty(version))
             {
@@ -69,6 +70,8 @@ namespace PatiDostum.EditorTools
                 return;
             }
 
+            // Android de aynı PlayerSettings'i kullanır: iOS için değişen ortak alanlar derlemeden sonra geri alınır
+            string originalProductName = PlayerSettings.productName;
             ApplySettings(buildNumber);
 
             var options = new BuildPlayerOptions
@@ -86,6 +89,10 @@ namespace PatiDostum.EditorTools
 
             BuildReport report = BuildPipeline.BuildPlayer(options);
             BuildSummary summary = report.summary;
+
+            PlayerSettings.productName = originalProductName;
+            PlayerSettings.bundleVersion = originalBundleVersion;
+            AssetDatabase.SaveAssets();
             bool ok = summary.result == BuildResult.Succeeded;
             if (ok)
                 Debug.Log($"[Pati Dostum] iOS Xcode projesi hazır: {outDir} (sürüm {PlayerSettings.bundleVersion}, build {buildNumber}, {summary.totalTime.TotalMinutes:0.0} dk)");
