@@ -11,19 +11,24 @@ jobs:
   help:
     runs-on: macos-26
     timeout-minutes: 15
+    env:
+      UNITY_NO_BANNER: "1"
+      UNITY_NO_PAGER: "1"
     steps:
       - name: Unity CLI'yi kur ve yardımını yaz
         run: |
-          set -x
           curl -fsSL https://unity.com/install.sh | bash
-          export PATH="$HOME/.local/bin:$HOME/.unity/bin:/usr/local/bin:$PATH"
-          command -v unity || ls -la "$HOME/.local/bin" "$HOME/.unity" 2>/dev/null || true
-          unity --version || true
-          unity --help || true
-          for c in install install-modules editors install-path license licenses login auth activate; do
-            echo "===== unity $c --help ====="
-            unity $c --help || true
-          done
-          echo "===== unity license subcommands ====="
-          unity license activate --help || true
-          unity license return --help || true
+          export PATH="$HOME/.unity/bin:$PATH"
+          h() { echo "===== unity $* --help ====="; unity "$@" --help 2>&1 | sed '/^Global Options:/,$d' || true; }
+          h auth
+          for s in login signin sign-in token status; do h auth $s; done
+          h license
+          h license list
+          h license return
+          h build
+          h run
+          h ci
+          echo "===== unity commands --grep auth/license/password/token ====="
+          for g in auth license password token email ci; do unity commands --grep $g 2>&1 || true; done
+          echo "===== unity skill show (CI, auth, license) ====="
+          unity skill show 2>&1 | grep -n -i -E -B2 -A6 "auth|license|password|token|ci/cd|non-interactive" | head -200 || true
