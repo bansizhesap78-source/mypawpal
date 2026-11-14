@@ -1,0 +1,29 @@
+name: Unity CLI keşif
+
+# Unity'nin bağımsız komut satırı aracının (unity) komutlarını ve seçeneklerini günlüğe yazar.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  help:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Unity CLI'yi kur ve yardımını yaz
+        run: |
+          set -x
+          curl -fsSL https://unity.com/install.sh | bash
+          export PATH="$HOME/.local/bin:$HOME/.unity/bin:/usr/local/bin:$PATH"
+          command -v unity || ls -la "$HOME/.local/bin" "$HOME/.unity" 2>/dev/null || true
+          unity --version || true
+          unity --help || true
+          for c in install install-modules editors install-path license licenses login auth activate; do
+            echo "===== unity $c --help ====="
+            unity $c --help || true
+          done
+          echo "===== unity license subcommands ====="
+          unity license activate --help || true
+          unity license return --help || true
